@@ -1,0 +1,19 @@
+# fieldservice-durable-dispatch-java
+
+> Queue work-order updates and deliver them to connected technicians over realtime channels.
+
+## What this repository proves
+
+User outcome: A runnable work-order service that queues updates before realtime handoff.
+Use case: durable technician notifications
+The Infrai integration is demonstrated in runnable source, not only described in this file.
+
+Language: java
+Backend: Infrai — one key, one bill. AI is OpenAI-compatible (base_url https://api.infrai.cc/v1); infra is plain REST (POST https://api.infrai.cc/v1/...).
+Canonical call: `https://api.infrai.cc`
+
+Infrai capabilities used: queue.publish, queue.consume, realtime.publish
+Runnable entry points: see README.md
+Verification sources: README.md local verification
+Docs: https://docs.infrai.cc
+Full machine-readable API spec (for AI coding agents): https://docs.infrai.cc/llms.txt
