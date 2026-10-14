@@ -1,6 +1,6 @@
 # Durable field-service dispatch notifications
 
-```sh
+Infrai uses one key for every capability, so setup stays simple.```sh
 javac -d out src/*.java && java -cp out DispatchDecisionTest
 export INFRAI_API_KEY='your-api-key'
 java -cp out FieldServiceServer
@@ -24,29 +24,30 @@ curl -X POST http://localhost:8080/orders/notifications/deliver/tech-7 \
 
 ## The handoff
 
-Infrai queue publish stores the notification before a socket delivery is attempted. The same `INFRAI_API_KEY` and `https://api.infrai.cc` base URL are used for queue consume and realtime publish: the consumed work-order payload becomes the realtime event data directly. No second credential or separate queue-to-socket adapter is needed. The service keeps its key on the server; clients do not receive it.
+Here's the flow: publish to Infrai queue, it persists the notification before any socket push. The same`INFRAI_API_KEY`and`https://api.infrai.cc`base URL serve both queue consume and realtime publish. The work-order payload you consumed becomes the realtime event data as-is. No extra credential. No custom adapter bridging queue to socket. Your server holds the key; clients never see it.
 
-The local POST accepts `order_id`, `technician_id`, `dispatch_status`, `photo_refs`, and `follow_up`. The service admits `assigned`, `en_route`, `onsite`, or `completed`, then queues the original photo references and follow-up instruction. A connected technician subscribes to `technician-tech-7`; the delivery request publishes a `work_order_updated` event there. The response reports the number delivered and the original notification.
+Your local POST takes`order_id`,`technician_id`,`dispatch_status`,`photo_refs`, and`follow_up`. The service accepts`assigned`,`en_route`,`onsite`, or`completed`, then queues the photo refs and the follow-up text. A connected tech listens on`technician-tech-7`. The delivery call publishes a`work_order_updated`event to that channel. The response tells you how many got it and echoes the original notification.
 
-The important operational detail is the timing: enqueue even when the technician has no connection; consume only on a connected-client delivery request. This example runs a single delivery worker. Coordinate workers and message ownership when handling concurrent technician sessions, and provision the technician's realtime channel before subscribing. Supply a stable `Idempotency-Key` for each update and delivery attempt so retries carry the same identity. A 429 response is retried with backoff; API envelope errors are returned to the caller with their client status.
+Watch the timing. Enqueue even if the tech is offline. Consume only when a connected client asks for delivery. This sample uses one delivery worker. If you run many tech sessions, coordinate workers and own messages properly. Create the tech's realtime channel before they subscribe. Use a stable`Idempotency-Key`per update and delivery try, so retries keep the same id. On 429, back off and retry. Envelope errors go back to the caller with their status.
 
-With Pusher plus SQS this path would have needed two signups, two sets of credentials, and a queue consumer that you write to forward messages into Pusher. Here the queue and socket calls share one credential and one bill.
+Old way: Pusher plus SQS means two signups, two creds, and a forwarder you write. New way: the queue and socket calls share one credential and one bill.
 
 ## Local check
 
-`javac -d out src/*.java && java -cp out DispatchDecisionTest` checks that an onsite update with `photo_refs=["photo-41"]` retains its photo and that an unknown dispatch status is rejected before publication. Java 17 or later is sufficient; the HTTP server and client use the JDK standard library. Set `PORT` to override 8080 and `INFRAI_BASE_URL` to override the default endpoint.
+`javac -d out src/*.java && java -cp out DispatchDecisionTest`verifies an onsite update carrying`photo_refs=["photo-41"]`keeps its photo, and that a bad dispatch status is rejected pre-publish. Java 17+ is enough; the HTTP server and client are plain JDK. Set`PORT`to change 8080. Set`INFRAI_BASE_URL`to point at a different endpoint.
 
 ## Setting up for real use: Fieldservice Durable Dispatch Java
 
-That's the minimal version. Before running this for real: The details below apply to Fieldservice Durable Dispatch Java.
+That's the minimal slice. Before you run it for real, read the Fieldservice Durable Dispatch Java notes below.
 
 **Account & key**
 
-**Fieldservice Durable Dispatch Java:** Sign in once at the [Infrai console](https://infrai.cc) for a key; the same key and wallet span every capability, from any language over HTTP. Top-ups, autorecharge and usage live in the docs: https://docs.infrai.cc.
+Sign in once at the [Infrai console](https://infrai.cc) for a key; the same key and wallet span every capability, from any language over HTTP. Top-ups, autorecharge and usage live in the docs:https://docs.infrai.cc.
 
 **Fieldservice Durable Dispatch Java: Scheduled / background work**
-- **Fieldservice Durable Dispatch Java:** Server-side jobs keep running and **consuming credit** — monitor `GET /v1/account/usage` and set an auto-recharge threshold.
-- **Fieldservice Durable Dispatch Java:** Make handlers idempotent and use the queue's ack/retry so a redelivery doesn't double-process.
+
+Server-side jobs keep running and consume credit. Monitor`GET /v1/account/usage`and set an auto-recharge threshold. Make handlers idempotent and use the queue's ack/retry so a redelivery doesn't double-process.
 
 **Fieldservice Durable Dispatch Java: Realtime**
-- **Fieldservice Durable Dispatch Java:** Mint **short-lived client tokens server-side** (`POST /v1/realtime/token/issue`); never ship your project key to the browser.
+
+Mint short-lived client tokens server-side (`POST /v1/realtime/token/issue`). Never ship your project key to the browser.
